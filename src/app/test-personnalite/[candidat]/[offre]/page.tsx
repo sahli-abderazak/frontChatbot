@@ -9,7 +9,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, Home } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Header from "../../../components/index/header"
 import Footer from "../../../components/index/footer"
-import PersonalityTest from "../../../components/personality-test"
+import PersonalityTest from "../../../components/testPerso/personality-test"
 
 export default function TestPersonnalitePage({
   params,
@@ -23,28 +23,18 @@ export default function TestPersonnalitePage({
   const [error, setError] = useState<string | null>(null)
   const [offreDetails, setOffreDetails] = useState<any>(null)
   const [testCompleted, setTestCompleted] = useState(false)
-//   const [debugInfo, setDebugInfo] = useState<string>("")
 
   // Parse IDs from params, ensuring they're valid numbers
   const candidatId = candidat ? Number.parseInt(candidat, 10) : null
   const offreId = offre ? Number.parseInt(offre, 10) : null
-
-  // Debug function
-//   const addDebugInfo = (info: string) => {
-//     setDebugInfo((prev) => prev + "\n" + info)
-//     console.log(info)
-//   }
 
   useEffect(() => {
     // Validate IDs
     if (!candidatId || isNaN(candidatId) || !offreId || isNaN(offreId)) {
       setError("Identifiants de candidat ou d'offre invalides")
       setLoading(false)
-    //   addDebugInfo(`IDs invalides: candidat=${candidat}, offre=${offre}`)
       return
     }
-
-    // addDebugInfo(`Chargement du test avec candidatId=${candidatId}, offreId=${offreId}`)
 
     // Fetch job details
     const fetchOffreDetails = async () => {
@@ -55,10 +45,8 @@ export default function TestPersonnalitePage({
         }
         const data = await response.json()
         setOffreDetails(data)
-        // addDebugInfo(`Détails de l'offre récupérés: ${data.poste}`)
       } catch (error) {
         console.error("Erreur lors de la récupération des détails de l'offre:", error)
-        // addDebugInfo(`Erreur: ${error.message}`)
         // Don't set error here, as the test can continue without job details
       } finally {
         setLoading(false)
@@ -69,7 +57,6 @@ export default function TestPersonnalitePage({
   }, [candidatId, offreId, candidat, offre])
 
   const handleTestComplete = () => {
-    // addDebugInfo("Test complété avec succès")
     setTestCompleted(true)
     // Redirect to jobs page after a delay
     setTimeout(() => {
@@ -183,14 +170,6 @@ export default function TestPersonnalitePage({
                   )}
                 </div>
               )}
-
-              {/* Debug info in development */}
-              {/* {process.env.NODE_ENV === "development" && debugInfo && (
-                <div className="mt-4 p-4 bg-gray-100 rounded-md">
-                  <h4 className="text-sm font-medium mb-2">Informations de débogage:</h4>
-                  <p className="font-mono text-xs whitespace-pre-wrap">{debugInfo}</p>
-                </div>
-              )} */}
             </CardContent>
           </Card>
         </div>

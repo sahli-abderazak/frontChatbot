@@ -51,7 +51,7 @@ export default function JobDetailPage({
     nom: "",
     prenom: "",
     email: "",
-    pays: "",
+    pays: "Tunisie",
     ville: "",
     codePostal: "",
     tel: "",
@@ -65,15 +65,7 @@ export default function JobDetailPage({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [showErrorDialog, setShowErrorDialog] = useState(false)
-  const [showTest, setShowTest] = useState(false)
   const [candidatId, setCandidatId] = useState<number | null>(null)
-  // const [debugInfo, setDebugInfo] = useState<string>("")
-
-  // Fonction pour ajouter des informations de débogage
-  // const addDebugInfo = (info: string) => {
-  //   setDebugInfo((prev) => prev + "\n" + info)
-  //   console.log(info)
-  // }
 
   useEffect(() => {
     // Fetch job details
@@ -154,7 +146,7 @@ export default function JobDetailPage({
       nom: "",
       prenom: "",
       email: "",
-      pays: "",
+      pays: "Tunisie",
       ville: "",
       codePostal: "",
       tel: "",
@@ -167,10 +159,10 @@ export default function JobDetailPage({
     setSuccess(false)
   }
 
-  // SOLUTION: Récupérer l'ID du candidat à partir de l'email
+  // Récupérer l'ID du candidat à partir de l'email
   const fetchCandidatIdByEmail = async (email) => {
     try {
-      // addDebugInfo(`Récupération de l'ID candidat pour l'email: ${email}`)
+      console.log(`Récupération de l'ID candidat pour l'email: ${email}`)
       const response = await fetch(`http://127.0.0.1:8000/api/candidat-by-email`, {
         method: "POST",
         headers: {
@@ -184,28 +176,28 @@ export default function JobDetailPage({
       }
 
       const data = await response.json()
-      // addDebugInfo(`Réponse de l'API candidat-by-email: ${JSON.stringify(data)}`)
+      console.log(`Réponse de l'API candidat-by-email: ${JSON.stringify(data)}`)
 
       if (data && data.id) {
-        // addDebugInfo(`ID candidat récupéré: ${data.id}`)
+        console.log(`ID candidat récupéré: ${data.id}`)
         return data.id
       } else {
         throw new Error("Aucun ID candidat trouvé dans la réponse")
       }
     } catch (error) {
-      // addDebugInfo(`Erreur lors de la récupération de l'ID candidat: ${error.message}`)
+      console.error(`Erreur lors de la récupération de l'ID candidat: ${error.message}`)
       return null
     }
   }
 
-  // SOLUTION: Récupérer l'ID du candidat à partir de l'email
+  // Rediriger vers le test de personnalité
   function showTestDirectly() {
     try {
       // Récupérer l'ID du candidat à partir de l'email
       fetchCandidatIdByEmail(formData.email).then((candidatId) => {
         if (candidatId) {
           // Rediriger vers la page de test avec les IDs
-          // addDebugInfo(`Redirection vers le test avec candidatId=${candidatId}, offreId=${formData.offre_id}`)
+          console.log(`Redirection vers le test avec candidatId=${candidatId}, offreId=${formData.offre_id}`)
           window.location.href = `/test-personnalite/${candidatId}/${formData.offre_id}`
         } else {
           // Si l'API ne retourne pas d'ID candidat, utiliser un ID par défaut pour les tests
@@ -213,32 +205,32 @@ export default function JobDetailPage({
           const defaultCandidatId = 4 // ID candidat valide dans votre système
           const defaultOffreId = formData.offre_id || 1 // Utiliser l'ID de l'offre actuelle ou 1 par défaut
 
-          // addDebugInfo(`Utilisation des IDs par défaut: candidat=${defaultCandidatId}, offre=${defaultOffreId}`)
+          console.log(`Utilisation des IDs par défaut: candidat=${defaultCandidatId}, offre=${defaultOffreId}`)
           window.location.href = `/test-personnalite/${defaultCandidatId}/${defaultOffreId}`
         }
       })
     } catch (error) {
-      // addDebugInfo(`Erreur lors de la redirection vers le test: ${error.message}`)
+      console.error(`Erreur lors de la redirection vers le test: ${error.message}`)
       setError("Impossible d'afficher le test de personnalité. Veuillez réessayer plus tard.")
     }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // addDebugInfo("Formulaire soumis")
+    console.log("Formulaire soumis")
     setError(null)
     setSuccess(false)
     setSubmitting(true)
 
     if (!file) {
-      // addDebugInfo("Erreur: Pas de fichier CV")
+      console.log("Erreur: Pas de fichier CV")
       setError("Veuillez sélectionner un CV")
       setSubmitting(false)
       return
     }
 
     try {
-      // addDebugInfo("Envoi des données au serveur...")
+      console.log("Envoi des données au serveur...")
       const formDataToSend = new FormData()
       formDataToSend.append("nom", formData.nom)
       formDataToSend.append("prenom", formData.prenom)
@@ -257,24 +249,24 @@ export default function JobDetailPage({
         body: formDataToSend,
       })
 
-      // addDebugInfo(`Réponse reçue: ${response.status}`)
+      console.log(`Réponse reçue: ${response.status}`)
 
       // Vérifiez si la réponse est JSON
       const contentType = response.headers.get("content-type")
-      // addDebugInfo(`Type de contenu: ${contentType}`)
+      console.log(`Type de contenu: ${contentType}`)
 
       let data
       if (contentType && contentType.indexOf("application/json") !== -1) {
         data = await response.json()
-        // addDebugInfo(`Données reçues: ${JSON.stringify(data)}`)
+        console.log(`Données reçues: ${JSON.stringify(data)}`)
       } else {
         const text = await response.text()
-        // addDebugInfo(`Réponse texte: ${text}`)
+        console.log(`Réponse texte: ${text}`)
         try {
           data = JSON.parse(text)
-          // addDebugInfo("Texte parsé en JSON avec succès")
+          console.log("Texte parsé en JSON avec succès")
         } catch (e) {
-          // addDebugInfo(`Erreur de parsing JSON: ${e.message}`)
+          console.error(`Erreur de parsing JSON: ${e.message}`)
           data = { error: "Format de réponse non valide" }
         }
       }
@@ -292,29 +284,28 @@ export default function JobDetailPage({
       } else {
         setSuccess(true)
 
-        // SOLUTION: Vérifier si l'ID du candidat est présent dans la réponse
+        // Vérifier si l'ID du candidat est présent dans la réponse
         if (data.candidat && data.candidat.id) {
           const candidatIdValue = data.candidat.id
-          // addDebugInfo(`ID du candidat récupéré: ${candidatIdValue}`)
+          console.log(`ID du candidat récupéré: ${candidatIdValue}`)
           setCandidatId(candidatIdValue)
 
           // Show the personality test after a short delay
           setTimeout(() => {
-            // addDebugInfo("Redirection vers la page de test de personnalité...")
+            console.log("Redirection vers la page de test de personnalité...")
             window.location.href = `/test-personnalite/${candidatIdValue}/${formData.offre_id}`
           }, 1500)
         } else {
-          // addDebugInfo("Aucun ID de candidat n'a été retourné, tentative de récupération par email")
+          console.log("Aucun ID de candidat n'a été retourné, tentative de récupération par email")
 
-          // SOLUTION: Si l'ID n'est pas retourné, essayer de le récupérer par email
+          // Si l'ID n'est pas retourné, essayer de le récupérer par email
           setTimeout(async () => {
             await showTestDirectly()
           }, 1500)
         }
       }
     } catch (error) {
-      // addDebugInfo(`Erreur: ${error.message}`)
-      console.error("Erreur:", error)
+      console.error(`Erreur: ${error.message}`)
     } finally {
       setSubmitting(false)
     }
@@ -322,14 +313,10 @@ export default function JobDetailPage({
 
   const handleTestComplete = () => {
     // Close the form and reset everything after test completion
-    // addDebugInfo("Test terminé, fermeture du formulaire")
-    setShowTest(false)
+    console.log("Test terminé, fermeture du formulaire")
     setShowForm(false)
     resetForm()
   }
-
-  // Afficher les informations de débogage en mode développement
-  const showDebugInfo = process.env.NODE_ENV === "development" || true
 
   if (loading) {
     return (
@@ -524,7 +511,7 @@ export default function JobDetailPage({
       <Dialog
         open={showForm}
         onOpenChange={(open) => {
-          if (!open && !showTest) {
+          if (!open) {
             setShowForm(false)
             resetForm()
           }
@@ -532,14 +519,8 @@ export default function JobDetailPage({
       >
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              {showTest ? "Test de personnalité" : `Postuler pour: ${offre?.poste}`}
-            </DialogTitle>
-            <DialogDescription>
-              {showTest
-                ? "Veuillez compléter ce test de personnalité pour finaliser votre candidature."
-                : "Remplissez le formulaire ci-dessous pour soumettre votre candidature."}
-            </DialogDescription>
+            <DialogTitle className="text-xl font-bold">{`Postuler pour: ${offre?.poste}`}</DialogTitle>
+            <DialogDescription>Remplissez le formulaire ci-dessous pour soumettre votre candidature.</DialogDescription>
           </DialogHeader>
 
           {success ? (
@@ -553,19 +534,12 @@ export default function JobDetailPage({
                 </AlertDescription>
               </Alert>
 
-              {/* SOLUTION: Bouton pour forcer l'affichage du test */}
+              {/* Bouton pour forcer l'affichage du test */}
               <div className="flex justify-center mt-4">
                 <Button onClick={showTestDirectly} className="bg-blue-500 hover:bg-blue-600">
                   Passer au test de personnalité
                 </Button>
               </div>
-
-              {/* {showDebugInfo && debugInfo && (
-                <div className="mt-4 p-4 bg-gray-100 rounded-md">
-                  <h4 className="text-sm font-medium mb-2">Informations de débogage:</h4>
-                  <p className="font-mono text-xs whitespace-pre-wrap">{debugInfo}</p>
-                </div>
-              )} */}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6" encType="multipart/form-data">
@@ -600,32 +574,7 @@ export default function JobDetailPage({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="pays">Pays</Label>
-                    <Select value={formData.pays} onValueChange={(value) => handleSelectChange("pays", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un pays" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Tunisie">Tunisie</SelectItem>
-                        <SelectItem value="Algérie">Algérie</SelectItem>
-                        <SelectItem value="Maroc">Maroc</SelectItem>
-                        <SelectItem value="Libye">Libye</SelectItem>
-                        <SelectItem value="Égypte">Égypte</SelectItem>
-                        <SelectItem value="France">France</SelectItem>
-                        <SelectItem value="Belgique">Belgique</SelectItem>
-                        <SelectItem value="Koweït">Koweït</SelectItem>
-                        <SelectItem value="Arabie Saoudite">Arabie Saoudite</SelectItem>
-                        <SelectItem value="Émirats Arabes Unis">Émirats Arabes Unis</SelectItem>
-                        <SelectItem value="Qatar">Qatar</SelectItem>
-                        <SelectItem value="Bahreïn">Bahreïn</SelectItem>
-                        <SelectItem value="Suisse">Suisse</SelectItem>
-                        <SelectItem value="Canada">Canada</SelectItem>
-                        <SelectItem value="Mauritanie">Mauritanie</SelectItem>
-                        <SelectItem value="Comores">Comores</SelectItem>
-                        <SelectItem value="Somalie">Somalie</SelectItem>
-                        <SelectItem value="Djibouti">Djibouti</SelectItem>
-                        <SelectItem value="Autre">Autre</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input id="pays" name="pays" value={formData.pays} readOnly />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ville">Ville</Label>
@@ -737,95 +686,7 @@ export default function JobDetailPage({
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Annuler
                 </Button>
-                <Button
-                  type="button"
-                  disabled={submitting}
-                  onClick={async () => {
-                    // Validation manuelle
-                    if (!file) {
-                      setError("Veuillez sélectionner un CV")
-                      return
-                    }
-
-                    // Appeler directement la fonction de soumission
-                    setError(null)
-                    setSuccess(false)
-                    setSubmitting(true)
-
-                    try {
-                      const formDataToSend = new FormData()
-                      formDataToSend.append("nom", formData.nom)
-                      formDataToSend.append("prenom", formData.prenom)
-                      formDataToSend.append("email", formData.email)
-                      formDataToSend.append("pays", formData.pays)
-                      formDataToSend.append("ville", formData.ville)
-                      formDataToSend.append("codePostal", formData.codePostal)
-                      formDataToSend.append("tel", formData.tel)
-                      formDataToSend.append("niveauEtude", formData.niveauEtude)
-                      formDataToSend.append("niveauExperience", formData.niveauExperience)
-                      formDataToSend.append("offre_id", formData.offre_id)
-                      formDataToSend.append("cv", file)
-
-                      // addDebugInfo("Envoi manuel des données...")
-                      const response = await fetch("http://127.0.0.1:8000/api/candidatStore", {
-                        method: "POST",
-                        body: formDataToSend,
-                      })
-
-                      // addDebugInfo(`Statut de la réponse: ${response.status}`)
-
-                      const contentType = response.headers.get("content-type")
-                      let data
-
-                      if (contentType && contentType.indexOf("application/json") !== -1) {
-                        data = await response.json()
-                        // addDebugInfo(`Données reçues: ${JSON.stringify(data)}`)
-                      } else {
-                        const text = await response.text()
-                        // addDebugInfo(`Réponse texte: ${text}`)
-                        try {
-                          data = JSON.parse(text)
-                        } catch (e) {
-                          data = { error: "Format de réponse non valide" }
-                        }
-                      }
-
-                      if (!response.ok) {
-                        if (data.error && data.error === "Vous avez déjà postulé à cette offre.") {
-                          setShowErrorDialog(true)
-                        } else {
-                          setError(data.error || "Erreur lors de l'envoi de la candidature")
-                          throw new Error(data.error || "Erreur lors de l'envoi de la candidature")
-                        }
-                      } else {
-                        setSuccess(true)
-                        if (data.candidat && data.candidat.id) {
-                          const candidatIdValue = data.candidat.id
-                          // addDebugInfo(`ID du candidat récupéré: ${candidatIdValue}`)
-                          setCandidatId(candidatIdValue)
-
-                          // Show the personality test after a short delay
-                          setTimeout(() => {
-                            // addDebugInfo("Redirection vers la page de test de personnalité...")
-                            window.location.href = `/test-personnalite/${candidatIdValue}/${formData.offre_id}`
-                          }, 1500)
-                        } else {
-                          // addDebugInfo("Aucun ID de candidat n'a été retourné, tentative de récupération par email")
-
-                          // SOLUTION: Si l'ID n'est pas retourné, essayer de le récupérer par email
-                          setTimeout(async () => {
-                            await showTestDirectly()
-                          }, 1500)
-                        }
-                      }
-                    } catch (error) {
-                      // addDebugInfo(`Erreur: ${error.message}`)
-                      console.error("Erreur:", error)
-                    } finally {
-                      setSubmitting(false)
-                    }
-                  }}
-                >
+                <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
                       <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
@@ -836,13 +697,6 @@ export default function JobDetailPage({
                   )}
                 </Button>
               </div>
-
-              {/* {showDebugInfo && debugInfo && (
-                <div className="mt-4 p-4 bg-gray-100 rounded-md">
-                  <h4 className="text-sm font-medium mb-2">Informations de débogage:</h4>
-                  <p className="font-mono text-xs whitespace-pre-wrap">{debugInfo}</p>
-                </div>
-              )} */}
             </form>
           )}
         </DialogContent>
@@ -864,7 +718,7 @@ export default function JobDetailPage({
             </Alert>
             <p className="text-sm text-muted-foreground mb-4">Veuillez contacter notre équipe de recrutement.</p>
 
-            {/* SOLUTION: Bouton pour afficher le test même si déjà postulé */}
+            {/* Bouton pour afficher le test même si déjà postulé */}
             <div className="flex justify-center mt-2">
               <Button
                 onClick={() => {
