@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -22,13 +22,32 @@ export default function ImageAnalysisTest({ candidatId, offreId, onComplete }: I
   const [analysis, setAnalysis] = useState<string | null>(null)
   const [completed, setCompleted] = useState(false)
 
+  // Use ref to prevent multiple API calls
+  const apiCallInProgress = useRef(false)
+  const imageLoaded = useRef(false)
+
   // Fetch the image when component mounts
   useEffect(() => {
-    fetchImage()
+    if (!apiCallInProgress.current && !imageLoaded.current) {
+      fetchImage()
+    }
   }, [candidatId, offreId])
 
   const fetchImage = async () => {
+    // Prevent multiple simultaneous API calls
+    if (apiCallInProgress.current) {
+      console.log("API call already in progress, skipping duplicate fetch")
+      return
+    }
+
+    // Don't fetch if we already have an image
+    if (imageLoaded.current && imageUrl) {
+      console.log("Image already loaded, skipping fetch")
+      return
+    }
+
     try {
+      apiCallInProgress.current = true
       setLoading(true)
       setError(null)
 
@@ -53,6 +72,7 @@ export default function ImageAnalysisTest({ candidatId, offreId, onComplete }: I
         setImageUrl(data.image_url)
         setImagePrompt(data.description_auto || "")
         console.log("Image générée avec succès:", data.image_url)
+        imageLoaded.current = true
       } else {
         throw new Error("Aucune URL d'image n'a été retournée")
       }
@@ -61,6 +81,7 @@ export default function ImageAnalysisTest({ candidatId, offreId, onComplete }: I
       setError(`Impossible de générer l'image: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setLoading(false)
+      apiCallInProgress.current = false
     }
   }
 
@@ -119,6 +140,7 @@ export default function ImageAnalysisTest({ candidatId, offreId, onComplete }: I
   }
 
   const handleRetry = () => {
+    imageLoaded.current = false
     fetchImage()
   }
 

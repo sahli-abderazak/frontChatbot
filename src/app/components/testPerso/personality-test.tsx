@@ -36,13 +36,16 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   const [testStage, setTestStage] = useState<"qcm" | "image" | "completed">("qcm")
   const [personalityAnalysis, setPersonalityAnalysis] = useState<string | null>(null)
 
-  // Use refs to track initialization state
+  // Use refs to track initialization state and prevent multiple API calls
   const isInitialRender = useRef(true)
   const questionsInitialized = useRef(false)
+  const apiCallInProgress = useRef(false)
 
   // Fetch questions when component mounts
   useEffect(() => {
-    fetchQuestions()
+    if (!apiCallInProgress.current && !questionsInitialized.current) {
+      fetchQuestions()
+    }
   }, [candidatId, offreId])
 
   // Initialize answers array when questions are loaded
@@ -68,7 +71,14 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   }, [currentQuestionIndex, answers, questions])
 
   const fetchQuestions = async () => {
+    // Prevent multiple simultaneous API calls
+    if (apiCallInProgress.current) {
+      console.log("API call already in progress, skipping duplicate fetch")
+      return
+    }
+
     try {
+      apiCallInProgress.current = true
       setLoading(true)
       setError(null)
       console.log(`Récupération des questions pour candidat ID: ${candidatId}, offre ID: ${offreId}`)
@@ -169,6 +179,7 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
       setError("Impossible de charger les questions du test. Veuillez réessayer.")
     } finally {
       setLoading(false)
+      apiCallInProgress.current = false
     }
   }
 
