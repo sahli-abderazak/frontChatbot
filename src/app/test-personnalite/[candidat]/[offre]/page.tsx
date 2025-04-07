@@ -10,6 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Header from "../../../components/index/header"
 import Footer from "../../../components/index/footer"
 import PersonalityTest from "../../../components/testPerso/personality-test"
+import "../../../components/styles/test-personnalite.css"
+import "../../../components/styles/index.css"
 
 export default function TestPersonnalitePage({
   params,
@@ -65,97 +67,103 @@ export default function TestPersonnalitePage({
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="personality-test-page">
       <Header />
 
-      <main className="flex-grow">
-        <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+      <main className="personality-test-main">
+        <div className="personality-test-container">
           {/* Breadcrumb and title */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-              <Link href="/" className="hover:text-primary transition-colors">
-                <Home className="h-4 w-4 inline mr-1" />
+          <div className="breadcrumb-container">
+            <div className="breadcrumb">
+              <Link href="/" className="breadcrumb-link">
+                <Home className="breadcrumb-icon" />
                 Accueil
               </Link>
-              <span>/</span>
-              <Link href="/jobs" className="hover:text-primary transition-colors">
+              <span className="breadcrumb-separator">/</span>
+              <Link href="/jobs" className="breadcrumb-link">
                 Offres d'emploi
               </Link>
-              <span>/</span>
+              <span className="breadcrumb-separator">/</span>
               {offreDetails ? (
-                <Link href={`/jobsDetail/${offreId}`} className="hover:text-primary transition-colors">
+                <Link href={`/jobsDetail/${offreId}`} className="breadcrumb-link">
                   {offreDetails.poste}
                 </Link>
               ) : (
-                <span>Détail de l'offre</span>
+                <span className="breadcrumb-text">Détail de l'offre</span>
               )}
-              <span>/</span>
-              <span className="text-primary font-medium">Test de personnalité</span>
+              <span className="breadcrumb-separator">/</span>
+              <span className="breadcrumb-current">Test de personnalité</span>
             </div>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Test de personnalité</h1>
-                <p className="text-muted-foreground mt-1">
+            <div className="page-header">
+              <div className="page-title-container">
+                <h1 className="page-title">Test de personnalité</h1>
+                <p className="page-subtitle">
                   {offreDetails
                     ? `Pour le poste de ${offreDetails.poste} chez ${offreDetails.societe}`
                     : "Évaluez votre compatibilité avec le poste"}
                 </p>
               </div>
 
-              <Button variant="outline" size="sm" onClick={() => router.back()} className="self-start">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" onClick={() => router.back()} className="back-button">
+                <ArrowLeft className="back-button-icon" />
                 Retour
               </Button>
             </div>
           </div>
 
           {/* Main content */}
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6 md:p-8">
+          <Card className="test-card">
+            <CardContent className="test-card-content">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-muted-foreground mt-4">Chargement du test de personnalité...</p>
+                <div className="loading-container">
+                  <div className="loading-spinner"></div>
+                  <p className="loading-text">Chargement du test de personnalité...</p>
                 </div>
               ) : error ? (
-                <div className="py-8">
-                  <Alert variant="destructive" className="mb-6">
-                    <AlertCircle className="h-5 w-5" />
+                <div className="error-container">
+                  <Alert variant="destructive" className="error-alert">
+                    <AlertCircle className="error-icon" />
                     <AlertTitle>Erreur</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
-                  <div className="flex justify-center mt-6">
+                  <div className="error-action">
                     <Button onClick={() => router.push("/jobs")}>Retour aux offres d'emploi</Button>
                   </div>
                 </div>
               ) : testCompleted ? (
-                <div className="py-12 text-center">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-50 mb-6">
-                    <CheckCircle2 className="h-10 w-10 text-green-600" />
+                <div className="success-container">
+                  <div className="success-icon-container">
+                    <CheckCircle2 className="success-icon" />
                   </div>
-                  <h2 className="text-2xl font-bold mb-2">Test complété avec succès !</h2>
-                  <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                  <h2 className="success-title">Test complété avec succès !</h2>
+                  <p className="success-message">
                     Merci d'avoir complété le test de personnalité. Votre candidature a été enregistrée et sera examinée
                     par notre équipe.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <div className="success-actions">
                     <Button onClick={() => router.push("/jobs")}>Voir d'autres offres</Button>
                     <Button variant="outline" onClick={() => router.push("/")}>
                       Retour à l'accueil
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-8">
-                    Vous serez redirigé automatiquement dans quelques secondes...
-                  </p>
+                  <p className="redirect-message">Vous serez redirigé automatiquement dans quelques secondes...</p>
                 </div>
               ) : (
                 <div className="test-container">
-                  <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-2">Instructions</h2>
-                    <p className="text-muted-foreground">
-                      Ce test de personnalité nous aidera à évaluer votre compatibilité avec le poste. Veuillez répondre
-                      honnêtement à toutes les questions. Il n'y a pas de bonnes ou mauvaises réponses.
+                  <div className="test-instructions">
+                    <h2 className="instructions-title">Instructions</h2>
+                    <p className="instructions-text">
+                      Ce test de personnalité nous aidera à évaluer votre compatibilité avec le poste. Il comporte deux
+                      parties :
+                      <br />
+                      1. Un questionnaire à choix multiples
+                      <br />
+                      2. Une analyse d'image où vous décrirez ce que vous voyez
+                      <br />
+                      <br />
+                      Veuillez répondre honnêtement à toutes les questions. Il n'y a pas de bonnes ou mauvaises
+                      réponses.
                     </p>
                   </div>
 
@@ -163,7 +171,7 @@ export default function TestPersonnalitePage({
                     <PersonalityTest candidatId={candidatId} offreId={offreId} onTestComplete={handleTestComplete} />
                   ) : (
                     <Alert variant="destructive">
-                      <AlertCircle className="h-5 w-5" />
+                      <AlertCircle className="error-icon" />
                       <AlertTitle>Erreur</AlertTitle>
                       <AlertDescription>Identifiants manquants pour le test</AlertDescription>
                     </Alert>

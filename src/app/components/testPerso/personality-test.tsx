@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import ImageAnalysisTest from "./image-analysis-test"
 
 interface Option {
   text: string
@@ -33,6 +33,12 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   const [testCompleted, setTestCompleted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [answers, setAnswers] = useState<(Option | null)[]>([])
+  const [testStage, setTestStage] = useState<"qcm" | "image" | "completed">("qcm")
+  const [personalityAnalysis, setPersonalityAnalysis] = useState<string | null>(null)
+
+  // Use refs to track initialization state
+  const isInitialRender = useRef(true)
+  const questionsInitialized = useRef(false)
 
   // Fetch questions when component mounts
   useEffect(() => {
@@ -41,17 +47,25 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
 
   // Initialize answers array when questions are loaded
   useEffect(() => {
-    if (questions.length > 0) {
+    if (questions.length > 0 && !questionsInitialized.current) {
+      console.log("Initializing answers array for the first time")
       setAnswers(new Array(questions.length).fill(null))
+      questionsInitialized.current = true
     }
   }, [questions])
 
   // Update selected option when changing questions
   useEffect(() => {
-    if (questions.length > 0 && currentQuestionIndex < questions.length) {
+    if (questions.length > 0 && currentQuestionIndex < questions.length && !isInitialRender.current) {
+      console.log(`Updating selected option for question ${currentQuestionIndex}`)
       setSelectedOption(answers[currentQuestionIndex])
     }
-  }, [currentQuestionIndex, answers])
+
+    // Mark initial render as complete after the first run
+    if (isInitialRender.current) {
+      isInitialRender.current = false
+    }
+  }, [currentQuestionIndex, answers, questions])
 
   const fetchQuestions = async () => {
     try {
@@ -83,9 +97,16 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
         if (response.ok) {
           const data = await response.json()
           console.log(`Questions récupérées depuis Laravel: ${data.length} questions`)
-          setQuestions(data)
-          setLoading(false)
-          return
+
+          if (Array.isArray(data) && data.length > 0) {
+            // Set questions and reset state in a controlled way
+            setQuestions(data)
+            // Don't set currentQuestionIndex here, let the initialization effect handle it
+            setLoading(false)
+            return
+          } else {
+            console.log("Réponse valide mais format incorrect ou vide, essai avec FastAPI")
+          }
         } else {
           const errorText = await response.text()
           console.log(`Échec de récupération depuis Laravel: ${response.status}, message: ${errorText}`)
@@ -96,85 +117,59 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
       }
 
       // Fallback to FastAPI
-      const response = await fetch(`http://127.0.0.1:8001/generate-test`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          cv: "Développeur expérimenté avec 5 ans d'expérience en développement web. Compétences en JavaScript, TypeScript, React, Node.js et bases de données SQL et NoSQL. Diplômé d'un Master en Informatique.",
-          offre:
-            "Poste de développeur backend. Responsabilités: développement et maintenance des applications web, optimisation des performances, collaboration avec l'équipe frontend.",
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Erreur lors de la récupération des questions: ${response.status}`)
-      }
-
-      // Parse the response
-      const responseText = await response.text()
-      let parsedQuestions: TestQuestion[] = []
-
       try {
-        // Try to parse as JSON
-        const data = JSON.parse(responseText)
-        if (Array.isArray(data)) {
-          parsedQuestions = data
-        } else if (data.question && Array.isArray(data.options)) {
-          // Single question object
-          parsedQuestions = [data]
+        const response = await fetch(`http://127.0.0.1:8001/generate-test`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cv: "Développeur expérimenté avec 5 ans d'expérience en développement web. Compétences en JavaScript, TypeScript, React, Node.js et bases de données SQL et NoSQL. Diplômé d'un Master en Informatique.",
+            offre:
+              "Poste de développeur backend. Responsabilités: développement et maintenance des applications web, optimisation des performances, collaboration avec l'équipe frontend.",
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Erreur lors de la récupération des questions: ${response.status}`)
         }
-      } catch (e) {
-        console.error("Erreur de parsing JSON:", e)
-        // Use fallback questions
-        parsedQuestions = getFallbackQuestions()
+
+        // Parse the response
+        const responseText = await response.text()
+        let parsedQuestions: TestQuestion[] = []
+
+        try {
+          // Try to parse as JSON
+          const data = JSON.parse(responseText)
+          if (Array.isArray(data) && data.length > 0) {
+            parsedQuestions = data
+          } else if (data.question && Array.isArray(data.options)) {
+            // Single question object
+            parsedQuestions = [data]
+          }
+
+          if (parsedQuestions.length > 0) {
+            // Set questions and reset state in a controlled way
+            setQuestions(parsedQuestions)
+            // Don't set currentQuestionIndex here, let the initialization effect handle it
+            setLoading(false)
+            return
+          }
+        } catch (e) {
+          console.error("Erreur de parsing JSON:", e)
+        }
+      } catch (error) {
+        console.error(`Erreur avec FastAPI: ${error instanceof Error ? error.message : String(error)}`)
       }
 
-      if (parsedQuestions.length === 0) {
-        parsedQuestions = getFallbackQuestions()
-      }
-
-      setQuestions(parsedQuestions)
+      // If both API calls fail, show error
+      setError("Impossible de récupérer les questions du test. Veuillez réessayer plus tard.")
     } catch (error) {
       console.error(`Erreur: ${error instanceof Error ? error.message : String(error)}`)
       setError("Impossible de charger les questions du test. Veuillez réessayer.")
-      setQuestions(getFallbackQuestions())
     } finally {
       setLoading(false)
     }
-  }
-
-  const getFallbackQuestions = (): TestQuestion[] => {
-    return [
-      {
-        question: "Comment réagissez-vous face à un problème complexe au travail?",
-        options: [
-          { text: "Je demande immédiatement de l'aide à mes collègues", score: 2 },
-          { text: "J'essaie de le résoudre seul(e) avant de demander de l'aide", score: 4 },
-          { text: "Je décompose le problème en parties plus petites et gérables", score: 5 },
-          { text: "Je reporte le problème à mon supérieur", score: 1 },
-        ],
-      },
-      {
-        question: "Comment gérez-vous les délais serrés?",
-        options: [
-          { text: "Je travaille plus d'heures pour terminer à temps", score: 3 },
-          { text: "Je priorise les tâches et me concentre sur les plus importantes", score: 5 },
-          { text: "Je demande une extension de délai", score: 1 },
-          { text: "Je délègue certaines tâches à mes collègues", score: 4 },
-        ],
-      },
-      {
-        question: "Comment préférez-vous travailler?",
-        options: [
-          { text: "Seul(e), en autonomie complète", score: 3 },
-          { text: "En équipe, avec des interactions régulières", score: 4 },
-          { text: "Un mélange des deux, selon les tâches", score: 5 },
-          { text: "Sous supervision directe", score: 2 },
-        ],
-      },
-    ]
   }
 
   const handleOptionSelect = (option: Option) => {
@@ -206,7 +201,7 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
       // Calculate final score from all answers
       const finalScore = newAnswers.reduce((total, answer) => total + (answer ? answer.score : 0), 0)
       setTotalScore(finalScore)
-      submitTest(finalScore)
+      submitQcmTest(finalScore)
     }
   }
 
@@ -217,10 +212,10 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
     }
   }
 
-  const submitTest = async (finalScore: number) => {
+  const submitQcmTest = async (finalScore: number) => {
     try {
       setSubmitting(true)
-      console.log(`Soumission du test avec score total: ${finalScore}`)
+      console.log(`Soumission du test QCM avec score total: ${finalScore}`)
 
       // Ensure we have valid IDs and convert them to numbers
       const candidatIdNumber = Number(candidatId)
@@ -297,34 +292,32 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
         }
       }
 
-      // Finaliser le test même si l'enregistrement a échoué
-      console.log("Test complété" + (success ? " avec succès" : " mais l'enregistrement a échoué"))
-      setTestCompleted(true)
-
-      // Attendre un peu avant de fermer le test
-      setTimeout(() => {
-        if (onTestComplete) {
-          onTestComplete()
-        }
-      }, 3000)
+      // Move to the image analysis stage
+      setTestStage("image")
     } catch (error) {
       console.error(`Erreur finale: ${error instanceof Error ? error.message : String(error)}`)
       setError(`Erreur lors de l'enregistrement du score: ${error instanceof Error ? error.message : String(error)}`)
 
-      // Même en cas d'erreur, permettre à l'utilisateur de terminer le test
+      // Even if there's an error, move to the image analysis stage
       setTimeout(() => {
-        console.log("Permettre à l'utilisateur de terminer malgré l'erreur")
-        setTestCompleted(true)
-
-        setTimeout(() => {
-          if (onTestComplete) {
-            onTestComplete()
-          }
-        }, 3000)
+        setTestStage("image")
       }, 2000)
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleImageAnalysisComplete = (analysis: string) => {
+    setPersonalityAnalysis(analysis)
+    setTestStage("completed")
+    setTestCompleted(true)
+
+    // Wait a bit before calling the onTestComplete callback
+    setTimeout(() => {
+      if (onTestComplete) {
+        onTestComplete()
+      }
+    }, 3000)
   }
 
   // Navigation directe vers une question spécifique
@@ -342,42 +335,82 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
     }
   }
 
-  if (loading) {
+  if (loading && testStage === "qcm") {
     return (
-      <div className="flex flex-col items-center justify-center py-8">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground">Chargement des questions...</p>
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p className="loading-text">Chargement des questions...</p>
       </div>
     )
   }
 
-  if (testCompleted) {
+  if (testStage === "completed") {
     return (
-      <div className="text-center py-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-50 mb-4">
-          <CheckCircle2 className="h-8 w-8 text-green-600" />
+      <div className="success-container">
+        <div className="success-icon-container">
+          <CheckCircle2 className="success-icon" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">Test terminé avec succès !</h3>
-        <p className="text-muted-foreground mb-4">Votre score est de {totalScore} points.</p>
+        <h3 className="success-title">Test terminé avec succès !</h3>
+        <p className="success-message">Votre candidature a été enregistrée avec succès.</p>
+        {personalityAnalysis && (
+          <div className="bg-[#ecfdf5] p-4 rounded-lg border border-[#a7f3d0] mb-4 max-w-2xl text-left">
+            <h4 className="font-medium text-[#065f46] mb-2">Analyse de personnalité</h4>
+            <p className="text-[#047857]">{personalityAnalysis}</p>
+          </div>
+        )}
       </div>
     )
   }
 
-  if (error && !questions.length) {
+  if (testStage === "image") {
     return (
-      <div className="p-4 border border-red-200 bg-red-50 rounded-md">
-        <p className="text-red-700 flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
-        </p>
+      <div className="test-content">
+        <div className="test-instructions">
+          <h3 className="instructions-title">Deuxième partie : Analyse d'image</h3>
+          <p className="instructions-text">
+            Dans cette partie du test, vous allez analyser une image qui représente une situation professionnelle. Votre
+            description nous aidera à mieux comprendre votre personnalité et votre approche du travail.
+          </p>
+        </div>
+        <ImageAnalysisTest candidatId={candidatId} offreId={offreId} onComplete={handleImageAnalysisComplete} />
       </div>
     )
   }
 
-  if (!questions.length) {
+  if (error && testStage === "qcm") {
     return (
-      <div className="p-4 border border-amber-200 bg-amber-50 rounded-md">
-        <p className="text-amber-700">Aucune question n'a été trouvée pour ce test.</p>
+      <div className="error-container">
+        <Alert variant="destructive" className="error-alert">
+          <AlertCircle className="error-icon" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <div className="error-action">
+          <Button onClick={fetchQuestions} className="retry-button">
+            Réessayer
+          </Button>
+          <Button variant="outline" onClick={() => window.history.back()} className="back-button">
+            Retour
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!questions.length && testStage === "qcm") {
+    return (
+      <div className="warning-container">
+        <Alert variant="warning" className="warning-alert">
+          <AlertCircle className="warning-icon" />
+          <AlertDescription>Aucune question n'a été trouvée pour ce test.</AlertDescription>
+        </Alert>
+        <div className="warning-action">
+          <Button onClick={fetchQuestions} className="retry-button">
+            Réessayer
+          </Button>
+          <Button variant="outline" onClick={() => window.history.back()} className="back-button">
+            Retour
+          </Button>
+        </div>
       </div>
     )
   }
@@ -386,80 +419,67 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100
 
   return (
-    <div className="space-y-8">
+    <div className="test-content">
       {/* Progress bar with improved visual feedback */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="w-full">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-semibold">
-              Question {currentQuestionIndex + 1} sur {questions.length}
-            </h3>
-            <span className="text-sm text-muted-foreground">{Math.round(progress)}% complété</span>
-          </div>
-          <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
-            <div
-              className="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
+      <div className="progress-container">
+        <div className="progress-header">
+          <h3 className="progress-title">
+            Question {currentQuestionIndex + 1} sur {questions.length}
+          </h3>
+          <span className="progress-percentage">{Math.round(progress)}% complété</span>
+        </div>
+        <div className="progress-bar-container">
+          <div className="progress-bar" style={{ width: `${progress}%` }}></div>
         </div>
       </div>
 
       {/* Question card with improved styling */}
-      <div className="bg-white p-6 rounded-lg border shadow-sm">
-        <h4 className="text-xl font-medium mb-6">{currentQuestion.question}</h4>
+      <div className="question-card">
+        <h4 className="question-text">{currentQuestion.question}</h4>
 
-        <div className="space-y-3">
+        <div className="options-container">
           {currentQuestion.options.map((option, index) => (
             <div
               key={index}
-              className={`p-4 border rounded-md cursor-pointer transition-all duration-200 ${
-                selectedOption === option
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-              }`}
+              className={`option-item ${selectedOption === option ? "selected" : ""}`}
               onClick={() => handleOptionSelect(option)}
             >
-              <div className="flex items-center">
-                <div
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${
-                    selectedOption === option ? "border-primary" : "border-gray-400"
-                  }`}
-                >
-                  {selectedOption === option && <div className="w-3 h-3 rounded-full bg-primary"></div>}
+              <div className="option-content">
+                <div className="option-radio">
+                  {selectedOption === option && <div className="option-radio-inner"></div>}
                 </div>
-                <span className={selectedOption === option ? "font-medium" : ""}>{option.text}</span>
+                <span className="option-text">{option.text}</span>
               </div>
             </div>
           ))}
         </div>
 
         {error && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertCircle className="h-4 w-4" />
+          <Alert variant="destructive" className="error-message">
+            <AlertCircle className="error-icon-small" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Navigation buttons with improved layout */}
-        <div className="mt-8 flex justify-between">
+        <div className="navigation-buttons">
           <Button
             variant="outline"
             onClick={goToPreviousQuestion}
             disabled={currentQuestionIndex === 0 || submitting}
-            className="min-w-[120px]"
+            className="prev-button"
           >
             Question précédente
           </Button>
 
-          <Button onClick={goToNextQuestion} disabled={!selectedOption || submitting} className="min-w-[150px]">
+          <Button onClick={goToNextQuestion} disabled={!selectedOption || submitting} className="next-button">
             {submitting ? (
               <>
-                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                <span className="loading-spinner-small"></span>
                 Traitement...
               </>
             ) : currentQuestionIndex === questions.length - 1 ? (
-              "Terminer le test"
+              "Passer à l'analyse d'image"
             ) : (
               "Question suivante"
             )}
@@ -468,16 +488,12 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
       </div>
 
       {/* Question counter pills */}
-      <div className="flex justify-center gap-2 mt-4 flex-wrap">
+      <div className="question-pills">
         {questions.map((_, index) => (
           <div
             key={index}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm cursor-pointer transition-colors ${
-              index === currentQuestionIndex
-                ? "bg-primary text-white"
-                : answers[index]
-                  ? "bg-green-100 text-green-800 border border-green-300"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className={`question-pill ${
+              index === currentQuestionIndex ? "current" : answers[index] ? "answered" : "unanswered"
             }`}
             onClick={() => navigateToQuestion(index)}
           >
