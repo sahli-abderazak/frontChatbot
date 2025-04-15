@@ -3,9 +3,10 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, AlertCircle } from "lucide-react"
+import { CheckCircle2, AlertCircle, Clock } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import ImageAnalysisTest from "./image-analysis-test"
+import TestSecurity from "./test-security"
 
 interface Option {
   text: string
@@ -13,6 +14,7 @@ interface Option {
 }
 
 interface TestQuestion {
+  trait: string
   question: string
   options: Option[]
 }
@@ -33,13 +35,51 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   const [testCompleted, setTestCompleted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [answers, setAnswers] = useState<(Option | null)[]>([])
-  const [testStage, setTestStage] = useState<"qcm" | "image" | "completed">("qcm")
+  const [testStage, setTestStage] = useState<"qcm" | "image" | "completed" | "timeout">("qcm")
   const [personalityAnalysis, setPersonalityAnalysis] = useState<string | null>(null)
+  const [securityViolations, setSecurityViolations] = useState<Record<string, number>>({})
+
+  // Timer state
+  const [timeRemaining, setTimeRemaining] = useState(10 * 60) // 10 minutes in seconds
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Use refs to track initialization state and prevent multiple API calls
   const isInitialRender = useRef(true)
   const questionsInitialized = useRef(false)
   const apiCallInProgress = useRef(false)
+
+  // Initialize timer when component mounts
+  useEffect(() => {
+    // Start the timer
+    timerRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Time's up - clear interval and set timeout state
+          if (timerRef.current) {
+            clearInterval(timerRef.current)
+          }
+          // Set timeout state which will trigger the timeout UI
+          setTestStage("timeout")
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    // Cleanup timer on unmount
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [])
+
+  // Clear timer when test is completed
+  useEffect(() => {
+    if (testStage === "completed" && timerRef.current) {
+      clearInterval(timerRef.current)
+    }
+  }, [testStage])
 
   // Fetch questions when component mounts
   useEffect(() => {
@@ -69,6 +109,13 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
       isInitialRender.current = false
     }
   }, [currentQuestionIndex, answers, questions])
+
+  // Format time remaining as MM:SS
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`
+  }
 
   const fetchQuestions = async () => {
     // Prevent multiple simultaneous API calls
@@ -106,12 +153,10 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
 
         if (response.ok) {
           const data = await response.json()
-          console.log(`Questions récupérées depuis Laravel: ${data.length} questions`)
 
-          if (Array.isArray(data) && data.length > 0) {
+          if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
             // Set questions and reset state in a controlled way
-            setQuestions(data)
-            // Don't set currentQuestionIndex here, let the initialization effect handle it
+            setQuestions(data.questions)
             setLoading(false)
             return
           } else {
@@ -128,52 +173,30 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
 
       // Fallback to FastAPI
       try {
-        const response = await fetch(`http://127.0.0.1:8001/generate-test`, {
+        const response = await fetch(`http://127.0.0.1:8002/generate-test`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            cv: "Développeur expérimenté avec 5 ans d'expérience en développement web. Compétences en JavaScript, TypeScript, React, Node.js et bases de données SQL et NoSQL. Diplômé d'un Master en Informatique.",
-            offre:
-              "Poste de développeur backend. Responsabilités: développement et maintenance des applications web, optimisation des performances, collaboration avec l'équipe frontend.",
-          }),
         })
 
         if (!response.ok) {
           throw new Error(`Erreur lors de la récupération des questions: ${response.status}`)
         }
 
-        // Parse the response
-        const responseText = await response.text()
-        let parsedQuestions: TestQuestion[] = []
+        const data = await response.json()
 
-        try {
-          // Try to parse as JSON
-          const data = JSON.parse(responseText)
-          if (Array.isArray(data) && data.length > 0) {
-            parsedQuestions = data
-          } else if (data.question && Array.isArray(data.options)) {
-            // Single question object
-            parsedQuestions = [data]
-          }
-
-          if (parsedQuestions.length > 0) {
-            // Set questions and reset state in a controlled way
-            setQuestions(parsedQuestions)
-            // Don't set currentQuestionIndex here, let the initialization effect handle it
-            setLoading(false)
-            return
-          }
-        } catch (e) {
-          console.error("Erreur de parsing JSON:", e)
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+          setQuestions(data.questions)
+          setLoading(false)
+          return
+        } else {
+          throw new Error("Format de réponse invalide depuis FastAPI")
         }
       } catch (error) {
         console.error(`Erreur avec FastAPI: ${error instanceof Error ? error.message : String(error)}`)
+        throw error
       }
-
-      // If both API calls fail, show error
-      setError("Impossible de récupérer les questions du test. Veuillez réessayer plus tard.")
     } catch (error) {
       console.error(`Erreur: ${error instanceof Error ? error.message : String(error)}`)
       setError("Impossible de charger les questions du test. Veuillez réessayer.")
@@ -259,6 +282,7 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
               candidat_id: candidatIdNumber,
               offre_id: offreIdNumber,
               score: finalScore,
+              security_violations: securityViolations, // Send security violations to the backend
             }),
           })
 
@@ -323,6 +347,11 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
     setTestStage("completed")
     setTestCompleted(true)
 
+    // Clear the timer when test is completed
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+    }
+
     // Wait a bit before calling the onTestComplete callback
     setTimeout(() => {
       if (onTestComplete) {
@@ -346,27 +375,59 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
     }
   }
 
+  // Handle security violations
+  const handleSecurityViolation = (type: string, count: number) => {
+    setSecurityViolations((prev) => ({
+      ...prev,
+      [type]: count,
+    }))
+
+    // Log the violation to the console
+    console.log(`Security violation: ${type}, count: ${count}`)
+
+    // You could also send this to your backend in real-time
+    // This example just stores it to send with the final submission
+  }
+
+  // Render timeout screen
+  if (testStage === "timeout") {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 space-y-6 text-center">
+        <div className="flex items-center justify-center h-16 w-16 rounded-full bg-red-100">
+          <AlertCircle className="h-8 w-8 text-red-600" />
+        </div>
+        <h3 className="text-2xl font-bold">Temps écoulé</h3>
+        <p className="text-muted-foreground">
+          Le temps alloué pour ce test est écoulé. Votre candidature n'a pas pu être complétée.
+        </p>
+        <Button variant="outline" onClick={() => window.history.back()}>
+          Retour
+        </Button>
+      </div>
+    )
+  }
+
   if (loading && testStage === "qcm") {
     return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p className="loading-text">Chargement des questions...</p>
+      <div className="flex flex-col items-center justify-center p-8 space-y-4">
+        <div className="h-12 w-12 rounded-full border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+        <p className="text-muted-foreground">Chargement des questions...</p>
       </div>
     )
   }
 
   if (testStage === "completed") {
     return (
-      <div className="success-container">
-        <div className="success-icon-container">
-          <CheckCircle2 className="success-icon" />
+      <div className="flex flex-col items-center justify-center p-8 space-y-6 text-center">
+        <div className="flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
+          <CheckCircle2 className="h-8 w-8 text-green-600" />
         </div>
-        <h3 className="success-title">Test terminé avec succès !</h3>
-        <p className="success-message">Votre candidature a été enregistrée avec succès.</p>
+        <h3 className="text-2xl font-bold">Test terminé avec succès !</h3>
+        <p className="text-muted-foreground">Votre candidature a été enregistrée avec succès.</p>
         {personalityAnalysis && (
-          <div className="bg-[#ecfdf5] p-4 rounded-lg border border-[#a7f3d0] mb-4 max-w-2xl text-left">
-            <h4 className="font-medium text-[#065f46] mb-2">Analyse de personnalité</h4>
-            <p className="text-[#047857]">{personalityAnalysis}</p>
+          <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4 max-w-2xl text-left">
+            <h4 className="font-medium text-green-800 mb-2">Analyse de personnalité</h4>
+            <p className="text-green-700">{personalityAnalysis}</p>
           </div>
         )}
       </div>
@@ -375,31 +436,39 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
 
   if (testStage === "image") {
     return (
-      <div className="test-content">
-        <div className="test-instructions">
-          <h3 className="instructions-title">Deuxième partie : Analyse d'image</h3>
-          <p className="instructions-text">
-            Dans cette partie du test, vous allez analyser une image qui représente une situation professionnelle. Votre
-            description nous aidera à mieux comprendre votre personnalité et votre approche du travail.
-          </p>
+      <TestSecurity onViolation={handleSecurityViolation} maxViolations={5}>
+        <div className="p-4 space-y-6">
+          {/* Timer display */}
+          <div className="flex items-center justify-center gap-2 text-lg font-medium">
+            <Clock className="h-5 w-5" />
+            <span className={`${timeRemaining < 60 ? "text-red-500 animate-pulse" : ""}`}>
+              Temps restant: {formatTime(timeRemaining)}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold">Deuxième partie : Analyse d'image</h3>
+            <p className="text-muted-foreground">
+              Dans cette partie du test, vous allez analyser une image qui représente une situation professionnelle.
+              Votre description nous aidera à mieux comprendre votre personnalité et votre approche du travail.
+            </p>
+          </div>
+          <ImageAnalysisTest candidatId={candidatId} offreId={offreId} onComplete={handleImageAnalysisComplete} />
         </div>
-        <ImageAnalysisTest candidatId={candidatId} offreId={offreId} onComplete={handleImageAnalysisComplete} />
-      </div>
+      </TestSecurity>
     )
   }
 
   if (error && testStage === "qcm") {
     return (
-      <div className="error-container">
-        <Alert variant="destructive" className="error-alert">
-          <AlertCircle className="error-icon" />
+      <div className="p-6 space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <div className="error-action">
-          <Button onClick={fetchQuestions} className="retry-button">
-            Réessayer
-          </Button>
-          <Button variant="outline" onClick={() => window.history.back()} className="back-button">
+        <div className="flex gap-4">
+          <Button onClick={fetchQuestions}>Réessayer</Button>
+          <Button variant="outline" onClick={() => window.history.back()}>
             Retour
           </Button>
         </div>
@@ -409,16 +478,14 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
 
   if (!questions.length && testStage === "qcm") {
     return (
-      <div className="warning-container">
-        <Alert variant="warning" className="warning-alert">
-          <AlertCircle className="warning-icon" />
+      <div className="p-6 space-y-4">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>Aucune question n'a été trouvée pour ce test.</AlertDescription>
         </Alert>
-        <div className="warning-action">
-          <Button onClick={fetchQuestions} className="retry-button">
-            Réessayer
-          </Button>
-          <Button variant="outline" onClick={() => window.history.back()} className="back-button">
+        <div className="flex gap-4">
+          <Button onClick={fetchQuestions}>Réessayer</Button>
+          <Button variant="outline" onClick={() => window.history.back()}>
             Retour
           </Button>
         </div>
@@ -430,91 +497,111 @@ const PersonalityTest: React.FC<PersonalityTestProps> = ({ candidatId, offreId, 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100
 
   return (
-    <div className="test-content">
-      {/* Progress bar with improved visual feedback */}
-      <div className="progress-container">
-        <div className="progress-header">
-          <h3 className="progress-title">
-            Question {currentQuestionIndex + 1} sur {questions.length}
-          </h3>
-          <span className="progress-percentage">{Math.round(progress)}% complété</span>
+    <TestSecurity onViolation={handleSecurityViolation} maxViolations={5}>
+      <div className="p-4 space-y-6">
+        {/* Timer display */}
+        <div className="flex items-center justify-center gap-2 text-lg font-medium">
+          <Clock className="h-5 w-5" />
+          <span className={`${timeRemaining < 60 ? "text-red-500 animate-pulse" : ""}`}>
+            Temps restant: {formatTime(timeRemaining)}
+          </span>
         </div>
-        <div className="progress-bar-container">
-          <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+
+        {/* Progress bar */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <h3 className="font-medium">
+              Question {currentQuestionIndex + 1} sur {questions.length}
+            </h3>
+            <span className="text-sm text-muted-foreground">{Math.round(progress)}% complété</span>
+          </div>
+          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }}></div>
+          </div>
         </div>
-      </div>
 
-      {/* Question card with improved styling */}
-      <div className="question-card">
-        <h4 className="question-text">{currentQuestion.question}</h4>
+        {/* Question card */}
+        <div className="border rounded-lg p-6 space-y-6 shadow-sm">
+          <div className="space-y-2">
+            <h4 className="text-lg font-medium">{currentQuestion.question}</h4>
+          </div>
 
-        <div className="options-container">
-          {currentQuestion.options.map((option, index) => (
+          <div className="space-y-3">
+            {currentQuestion.options.map((option, index) => (
+              <div
+                key={index}
+                className={`flex items-center p-3 rounded-md border cursor-pointer transition-colors ${
+                  selectedOption === option ? "bg-primary/10 border-primary" : "hover:bg-muted/50"
+                }`}
+                onClick={() => handleOptionSelect(option)}
+              >
+                <div className="flex-shrink-0 mr-3">
+                  <div
+                    className={`h-5 w-5 rounded-full border flex items-center justify-center ${
+                      selectedOption === option ? "border-primary" : "border-muted-foreground"
+                    }`}
+                  >
+                    {selectedOption === option && <div className="h-3 w-3 rounded-full bg-primary"></div>}
+                  </div>
+                </div>
+                <span className="text-sm">{option.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Navigation buttons */}
+          <div className="flex justify-between pt-4">
+            <Button
+              variant="outline"
+              onClick={goToPreviousQuestion}
+              disabled={currentQuestionIndex === 0 || submitting}
+            >
+              Question précédente
+            </Button>
+
+            <Button onClick={goToNextQuestion} disabled={!selectedOption || submitting}>
+              {submitting ? (
+                <>
+                  <div className="h-4 w-4 rounded-full border-2 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin mr-2"></div>
+                  Traitement...
+                </>
+              ) : currentQuestionIndex === questions.length - 1 ? (
+                "Passer à l'analyse d'image"
+              ) : (
+                "Question suivante"
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Question counter pills */}
+        <div className="flex flex-wrap gap-2 justify-center">
+          {questions.map((_, index) => (
             <div
               key={index}
-              className={`option-item ${selectedOption === option ? "selected" : ""}`}
-              onClick={() => handleOptionSelect(option)}
+              className={`h-8 w-8 rounded-full flex items-center justify-center text-sm cursor-pointer transition-colors ${
+                index === currentQuestionIndex
+                  ? "bg-primary text-primary-foreground"
+                  : answers[index]
+                    ? "bg-primary/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+              onClick={() => navigateToQuestion(index)}
             >
-              <div className="option-content">
-                <div className="option-radio">
-                  {selectedOption === option && <div className="option-radio-inner"></div>}
-                </div>
-                <span className="option-text">{option.text}</span>
-              </div>
+              {index + 1}
             </div>
           ))}
         </div>
-
-        {error && (
-          <Alert variant="destructive" className="error-message">
-            <AlertCircle className="error-icon-small" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Navigation buttons with improved layout */}
-        <div className="navigation-buttons">
-          <Button
-            variant="outline"
-            onClick={goToPreviousQuestion}
-            disabled={currentQuestionIndex === 0 || submitting}
-            className="prev-button"
-          >
-            Question précédente
-          </Button>
-
-          <Button onClick={goToNextQuestion} disabled={!selectedOption || submitting} className="next-button">
-            {submitting ? (
-              <>
-                <span className="loading-spinner-small"></span>
-                Traitement...
-              </>
-            ) : currentQuestionIndex === questions.length - 1 ? (
-              "Passer à l'analyse d'image"
-            ) : (
-              "Question suivante"
-            )}
-          </Button>
-        </div>
       </div>
-
-      {/* Question counter pills */}
-      <div className="question-pills">
-        {questions.map((_, index) => (
-          <div
-            key={index}
-            className={`question-pill ${
-              index === currentQuestionIndex ? "current" : answers[index] ? "answered" : "unanswered"
-            }`}
-            onClick={() => navigateToQuestion(index)}
-          >
-            {index + 1}
-          </div>
-        ))}
-      </div>
-    </div>
+    </TestSecurity>
   )
 }
 
 export default PersonalityTest
-

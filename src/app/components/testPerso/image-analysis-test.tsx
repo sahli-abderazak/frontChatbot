@@ -256,4 +256,3 @@ export default function ImageAnalysisTest({ candidatId, offreId, onComplete }: I
     </div>
   )
 }
-

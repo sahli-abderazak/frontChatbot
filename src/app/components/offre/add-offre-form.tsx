@@ -133,6 +133,17 @@ const EDUCATION_LEVELS = [
   { id: "8", name: "Bac+5" },
 ]
 
+const MATCHING_PERCENTAGES = [
+  { id: "1", name: "0%", value: 0 },
+  { id: "2", name: "10%", value: 10 },
+  { id: "3", name: "20%", value: 20 },
+  { id: "4", name: "30%", value: 30 },
+  { id: "5", name: "40%", value: 40 },
+  { id: "6", name: "50%", value: 50 },
+  { id: "7", name: "60%", value: 60 },
+  { id: "8", name: "70%", value: 70 },
+]
+
 // Valeur spéciale pour l'option "Autre"
 const AUTRE_OPTION = "autre"
 
@@ -147,8 +158,8 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({})
 
   // État pour les champs personnalisés
-  const [customDomaine, setCustomDomaine] = useState<string>("")
-  const [customPoste, setCustomPoste] = useState<string>("")
+  const [customDomaine, setCustomPoste] = useState<string>("")
+  const [customPoste, setCustomDomaine] = useState<string>("")
 
   const [formData, setFormData] = useState({
     departement: "",
@@ -166,6 +177,7 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
     domaine: "",
     responsabilite: "",
     experience: "",
+    matchingAttachment: "", // Add this new field
   })
 
   // Filtered options based on department selection
@@ -374,6 +386,8 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
         responsabilite: formData.responsabilite,
         experience: formData.experience,
         datePublication: new Date().toISOString().split("T")[0], // Current date
+        // Convertir matchingAttachment en valeur numérique pour le champ matching
+        matching: formData.matchingAttachment ? Number.parseInt(formData.matchingAttachment.replace("%", "")) : 0,
       }
 
       const response = await fetch("http://127.0.0.1:8000/api/addOffres", {
@@ -411,6 +425,7 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
         domaine: "",
         responsabilite: "",
         experience: "",
+        matchingAttachment: "", // Reset this field too
       })
       setCustomDomaine("")
       setCustomPoste("")
@@ -789,6 +804,26 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
                     </select>
                     {hasError("niveauEtude") && <p className="text-xs text-red-500 mt-1">Ce champ est obligatoire</p>}
                   </div>
+
+                  {/* Correspondance avec l'offre */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="matchingAttachment" className={styles.label}>
+                      Correspondance avec l'offre
+                    </label>
+                    <select
+                      id="matchingAttachment"
+                      value={formData.matchingAttachment}
+                      onChange={(e) => handleSelectChange("matchingAttachment", e.target.value)}
+                      className={styles.select}
+                    >
+                      <option value="">Sélectionner un pourcentage</option>
+                      {MATCHING_PERCENTAGES.map((percentage) => (
+                        <option key={percentage.id} value={percentage.value}>
+                          {percentage.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Responsabilités */}
@@ -847,7 +882,7 @@ export function AddOffreForm({ onOffreAdded }: { onOffreAdded: () => void }) {
                         name="pays"
                         value={formData.pays}
                         onChange={handleInputChange}
-                        placeholder="Ex: Tunisie"
+                        placeholder="Tunisie"
                         className={`${styles.input} pl-10`}
                         required
                       />

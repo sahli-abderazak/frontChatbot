@@ -25,6 +25,7 @@ export default function TestPersonnalitePage({
   const [error, setError] = useState<string | null>(null)
   const [offreDetails, setOffreDetails] = useState<any>(null)
   const [testCompleted, setTestCompleted] = useState(false)
+  const [securityViolations, setSecurityViolations] = useState<Record<string, number>>({})
 
   // Parse IDs from params, ensuring they're valid numbers
   const candidatId = candidat ? Number.parseInt(candidat, 10) : null
@@ -64,6 +65,28 @@ export default function TestPersonnalitePage({
     setTimeout(() => {
       router.push("/jobs")
     }, 5000)
+  }
+
+  // Handle security violations from the test
+  const handleSecurityViolation = (type: string, count: number) => {
+    setSecurityViolations((prev) => ({
+      ...prev,
+      [type]: count,
+    }))
+
+    // Log violations to console for debugging
+    console.log(`Security violation detected: ${type}, count: ${count}`)
+
+    // Si on a trop de violations, on sort du mode plein écran
+    if (hasTooManyViolations() && document.fullscreenElement) {
+      document.exitFullscreen().catch((err) => console.error("Erreur lors de la sortie du mode plein écran:", err))
+    }
+  }
+
+  // Check if there are too many security violations
+  const hasTooManyViolations = () => {
+    const totalViolations = Object.values(securityViolations).reduce((sum, count) => sum + count, 0)
+    return totalViolations >= 5 // Considère 5 violations totales comme trop
   }
 
   return (
@@ -131,6 +154,35 @@ export default function TestPersonnalitePage({
                     <Button onClick={() => router.push("/jobs")}>Retour aux offres d'emploi</Button>
                   </div>
                 </div>
+              ) : hasTooManyViolations() ? (
+                <div className="error-container">
+                  <Alert variant="destructive" className="error-alert">
+                    <AlertCircle className="error-icon" />
+                    <AlertTitle>Test interrompu</AlertTitle>
+                    <AlertDescription>
+                      Nous avons détecté plusieurs tentatives de contourner les règles du test. Votre session a été
+                      interrompue pour des raisons de sécurité.
+                    </AlertDescription>
+                  </Alert>
+                  <div className="error-action">
+                    <Button onClick={() => router.push("/jobs")}>Retour aux offres d'emploi</Button>
+                  </div>
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="font-medium text-red-700 mb-2">Violations de sécurité détectées :</h4>
+                    <ul className="list-disc pl-5 text-sm text-red-600">
+                      {Object.entries(securityViolations).map(([type, count]) => (
+                        <li key={type}>
+                          {type === "clipboard" && `Tentatives de copier-coller: ${count}`}
+                          {type === "tabswitch" && `Changements d'onglet: ${count}`}
+                          {type === "windowblur" && `Sorties de la fenêtre: ${count}`}
+                          {type === "keyboard" && `Raccourcis clavier interdits: ${count}`}
+                          {type === "contextmenu" && `Ouvertures du menu contextuel: ${count}`}
+                          {type === "fullscreen" && `Sorties du mode plein écran: ${count}`}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               ) : testCompleted ? (
                 <div className="success-container">
                   <div className="success-icon-container">
@@ -165,6 +217,18 @@ export default function TestPersonnalitePage({
                       Veuillez répondre honnêtement à toutes les questions. Il n'y a pas de bonnes ou mauvaises
                       réponses.
                     </p>
+                    <Alert className="mb-4 bg-amber-50 border-amber-200">
+                      <AlertCircle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800">
+                        Pour garantir l'intégrité du test, veuillez noter que :
+                        <ul className="list-disc pl-5 mt-2 text-sm">
+                          <li>Le copier-coller est désactivé pendant le test</li>
+                          <li>Vous devez rester sur cette page jusqu'à la fin du test</li>
+                          <li>Le test s'exécutera en mode plein écran</li>
+                          <li>Toute tentative de contourner ces mesures sera enregistrée</li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
                   </div>
 
                   {candidatId && offreId ? (
@@ -187,4 +251,3 @@ export default function TestPersonnalitePage({
     </div>
   )
 }
-

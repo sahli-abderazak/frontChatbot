@@ -53,6 +53,13 @@ interface Offre {
   departement: string
 }
 
+interface MatchingScore {
+  matching_score: number
+  evaluation: string
+  points_forts: string
+  ecarts: string
+}
+
 export default function CandidatOffrePage({ params }: { params: Promise<{ offre_id: string }> }) {
   // Utiliser React.use pour déballer les paramètres de route
   const resolvedParams = use(params)
@@ -136,6 +143,12 @@ export default function CandidatOffrePage({ params }: { params: Promise<{ offre_
             </div>
           </div>
           <div className="md:col-span-5 lg:col-span-5 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
+              <div className="text-sm text-muted-foreground italic flex items-center">
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5" />
+                Les statistiques de correspondance avec l'offre sont générées par l'IA
+              </div>
+            </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <Button
@@ -218,7 +231,40 @@ export default function CandidatOffrePage({ params }: { params: Promise<{ offre_
   )
 }
 
+// Modify the CandidatCard component to ensure all cards have the same height
 function CandidatCard({ candidat }: { candidat: Candidat }) {
+  const [matchingScore, setMatchingScore] = useState<MatchingScore | null>(null)
+  const [loadingScore, setLoadingScore] = useState(false)
+
+  useEffect(() => {
+    const fetchMatchingScore = async () => {
+      try {
+        setLoadingScore(true)
+        const token = localStorage.getItem("token")
+        if (!token) return
+
+        const response = await fetch(`http://127.0.0.1:8000/api/showMatchingScore/${candidat.id}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setMatchingScore(data)
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération du score de matching:", error)
+      } finally {
+        setLoadingScore(false)
+      }
+    }
+
+    fetchMatchingScore()
+  }, [candidat.id])
+
   // Formater la date et l'heure de candidature
   const formatDateAndTime = (dateString: string | undefined) => {
     // Si la date n'est pas définie, utiliser une valeur par défaut
@@ -269,8 +315,16 @@ function CandidatCard({ candidat }: { candidat: Candidat }) {
   // Utiliser tel ou telephone selon ce qui est disponible
   const telephone = candidat.telephone || candidat.tel || null
 
+  // Fonction pour déterminer la couleur du badge de matching score
+  const getMatchingScoreColor = (score: number) => {
+    if (score >= 80) return "bg-green-100 text-green-800 border-green-200"
+    if (score >= 60) return "bg-blue-100 text-blue-800 border-blue-200"
+    if (score >= 40) return "bg-amber-100 text-amber-800 border-amber-200"
+    return "bg-red-100 text-red-800 border-red-200"
+  }
+
   return (
-    <Card className="overflow-hidden border-gray-200 hover:border-blue-300 transition-colors duration-200 shadow-sm hover:shadow">
+    <Card className="overflow-hidden border-gray-200 hover:border-blue-300 transition-colors duration-200 shadow-sm hover:shadow flex flex-col h-full">
       <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 pb-3">
         <div className="flex justify-between items-start">
           <div>
@@ -280,6 +334,18 @@ function CandidatCard({ candidat }: { candidat: Candidat }) {
             </CardTitle>
           </div>
           <div className="flex gap-2">
+            {/* Matching Score Badge */}
+            {loadingScore ? (
+              <div className="h-8 w-24 bg-gray-100 animate-pulse rounded-full"></div>
+            ) : matchingScore ? (
+              <Badge
+                variant="outline"
+                className={`${getMatchingScoreColor(matchingScore.matching_score)} px-3 py-1 font-medium`}
+              >
+                Correspondance avec l'offre: {matchingScore.matching_score}%
+              </Badge>
+            ) : null}
+
             {candidat.cv && (
               <Button
                 variant="outline"
@@ -295,7 +361,7 @@ function CandidatCard({ candidat }: { candidat: Candidat }) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 pt-3 pb-2">
+      <CardContent className="p-4 pt-3 pb-2 flex-grow">
         <div className="grid grid-cols-1 gap-2.5">
           <div className="flex items-center">
             <Mail className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
@@ -348,11 +414,33 @@ function CandidatCard({ candidat }: { candidat: Candidat }) {
               </span>
             </div>
           )}
+
+          {/* Matching Score Details - only show if we have data */}
+          {matchingScore && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <div className="text-xs font-semibold uppercase text-gray-500 mb-1">Évaluation</div>
+              <p className="text-sm text-gray-700">{matchingScore.evaluation}</p>
+
+              {matchingScore.points_forts && (
+                <div className="mt-1.5">
+                  <div className="text-xs font-semibold uppercase text-green-600">Points forts</div>
+                  <p className="text-sm text-gray-700">{matchingScore.points_forts}</p>
+                </div>
+              )}
+
+              {matchingScore.ecarts && (
+                <div className="mt-1.5">
+                  <div className="text-xs font-semibold uppercase text-amber-600">Écarts</div>
+                  <p className="text-sm text-gray-700">{matchingScore.ecarts}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
 
       {/* Pied de carte avec bordure supérieure */}
-      <CardFooter className="p-3 bg-gray-50 flex items-center justify-between border-t border-gray-200">
+      <CardFooter className="p-3 bg-gray-50 flex items-center justify-between border-t border-gray-200 mt-auto">
         <div className="flex items-center text-sm text-gray-500">
           <Calendar className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
           <span>Postuler le {date}</span>
@@ -367,4 +455,3 @@ function CandidatCard({ candidat }: { candidat: Candidat }) {
     </Card>
   )
 }
-

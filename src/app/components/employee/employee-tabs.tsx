@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
-import { Search, Eye, X, Trash } from "lucide-react"
+import { Search, Eye, X, Trash, Mail, CheckSquare, Square, Loader2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -19,6 +19,7 @@ import {
 import { ReviewsTable } from "./employee-table"
 import { UserDetailsDialog } from "./UserDetailsDialog"
 import "../styles/employee-cards.css"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface User {
   id: number
@@ -47,6 +48,11 @@ export function ReviewsTabs({ refreshTrigger }: { refreshTrigger: boolean }) {
   const [userToArchive, setUserToArchive] = useState<number | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedUsers, setSelectedUsers] = useState<number[]>([])
+  const [isBatchArchiveDialogOpen, setIsBatchArchiveDialogOpen] = useState(false)
+  const [archivedUserIds, setArchivedUserIds] = useState<number[]>([])
+  const [batchArchiveLoading, setBatchArchiveLoading] = useState(false)
 
   // Charger tous les utilisateurs au démarrage
   useEffect(() => {
@@ -190,6 +196,111 @@ export function ReviewsTabs({ refreshTrigger }: { refreshTrigger: boolean }) {
     }
   }
 
+  const toggleUserSelection = (userId: number) => {
+    setSelectedUsers((prevSelectedUsers) => {
+      if (prevSelectedUsers.includes(userId)) {
+        return prevSelectedUsers.filter((id) => id !== userId)
+      } else {
+        return [...prevSelectedUsers, userId]
+      }
+    })
+  }
+
+  const toggleSelectMode = () => {
+    if (selectMode) {
+      // Si on désactive le mode sélection, on vide la liste des utilisateurs sélectionnés
+      setSelectedUsers([])
+    }
+    setSelectMode(!selectMode)
+  }
+
+  const selectAllUsers = () => {
+    if (selectedUser) {
+      setSelectedUsers([selectedUser.id])
+    } else {
+      setSelectedUsers(allUsers.map((user) => user.id))
+    }
+  }
+
+  const deselectAllUsers = () => {
+    setSelectedUsers([])
+  }
+
+  const sendEmailToSelected = () => {
+    const selectedEmails = allUsers
+      .filter((user) => selectedUsers.includes(user.id))
+      .map((user) => user.email)
+      .join(",")
+
+    if (selectedEmails) {
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${selectedEmails}`, "_blank")
+    }
+  }
+
+  const archiveSelectedUsers = () => {
+    if (selectedUsers.length > 0) {
+      setIsBatchArchiveDialogOpen(true)
+    }
+  }
+
+  const confirmBatchArchive = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      setIsBatchArchiveDialogOpen(false)
+      return
+    }
+
+    // Activer l'indicateur de chargement dans la boîte de dialogue
+    setBatchArchiveLoading(true)
+
+    try {
+      // Créer une copie des IDs sélectionnés avant de les archiver
+      const usersToArchive = [...selectedUsers]
+      
+      // Archiver chaque utilisateur sélectionné
+      const archivePromises = usersToArchive.map((userId) =>
+        fetch(`http://127.0.0.1:8000/api/users/archive/${userId}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+      )
+
+      // Attendre que toutes les requêtes soient terminées
+      await Promise.all(archivePromises)
+        .then(() => {
+          console.log("Tous les utilisateurs ont été archivés avec succès")
+          
+          // Mettre à jour l'interface APRÈS l'archivage réussi
+          setAllUsers((prevUsers) => prevUsers.filter((user) => !usersToArchive.includes(user.id)))
+          
+          // Mettre à jour la liste des utilisateurs archivés
+          setArchivedUserIds(usersToArchive)
+
+          // Si l'utilisateur sélectionné a été archivé, réinitialiser
+          if (selectedUser && usersToArchive.includes(selectedUser.id)) {
+            setSelectedUser(null)
+            setSearchTerm("")
+          }
+
+          // Réinitialiser la sélection
+          setSelectedUsers([])
+          setSelectMode(false)
+        })
+        .catch((error) => {
+          console.error("Erreur lors de l'archivage de certains utilisateurs:", error)
+        })
+    } catch (error) {
+      console.error("Erreur lors de l'archivage des utilisateurs:", error)
+    } finally {
+      // Désactiver l'indicateur de chargement et fermer la boîte de dialogue
+      setBatchArchiveLoading(false)
+      setIsBatchArchiveDialogOpen(false)
+    }
+  }
+
   return (
     <div className="w-full">
       <div className="flex items-center gap-2 mb-4">
@@ -246,11 +357,73 @@ export function ReviewsTabs({ refreshTrigger }: { refreshTrigger: boolean }) {
             </div>
           )}
         </div>
+
+        {/* Bouton de sélection */}
+        <Button
+          variant={selectMode ? "default" : "outline"}
+          onClick={toggleSelectMode}
+          className={`whitespace-nowrap ${selectMode ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+        >
+          {selectMode ? "Terminer" : "Sélectionner"}
+        </Button>
       </div>
+
+      {/* Barre d'actions pour la sélection par lot */}
+      {selectMode && (
+        <div className="batch-actions mb-4 flex flex-wrap gap-2 p-3 bg-gray-50 rounded-md border">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectAllUsers}
+            className="whitespace-nowrap text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          >
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Tout sélectionner
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={deselectAllUsers}
+            className="whitespace-nowrap text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          >
+            <Square className="h-4 w-4 mr-2" />
+            Tout désélectionner
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={sendEmailToSelected}
+            disabled={selectedUsers.length === 0}
+            className="whitespace-nowrap text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email ({selectedUsers.length})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={archiveSelectedUsers}
+            disabled={selectedUsers.length === 0}
+            className="whitespace-nowrap text-red-500 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash className="h-4 w-4 mr-2" />
+            Archiver ({selectedUsers.length})
+          </Button>
+        </div>
+      )}
 
       {selectedUser ? (
         <div className="cards-grid">
           <Card className="user-card">
+            {selectMode && (
+              <div className="absolute top-2 left-2 z-10">
+                <Checkbox
+                  checked={selectedUsers.includes(selectedUser.id)}
+                  onCheckedChange={() => toggleUserSelection(selectedUser.id)}
+                  className="h-5 w-5 border-2 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                />
+              </div>
+            )}
             <div className="card-header"></div>
             <div className="avatar-container">
               <Avatar className="user-avatar">
@@ -322,7 +495,13 @@ export function ReviewsTabs({ refreshTrigger }: { refreshTrigger: boolean }) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="recruteur" className="p-6">
-            <ReviewsTable refresh={refreshTrigger} />
+            <ReviewsTable
+              refresh={refreshTrigger}
+              selectMode={selectMode}
+              selectedUsers={selectedUsers}
+              onToggleSelect={toggleUserSelection}
+              archivedUserIds={archivedUserIds}
+            />
           </TabsContent>
         </Tabs>
       )}
@@ -342,6 +521,45 @@ export function ReviewsTabs({ refreshTrigger }: { refreshTrigger: boolean }) {
             </Button>
             <Button type="button" variant="destructive" onClick={confirmArchive}>
               Archiver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Archive Confirmation Dialog */}
+      <Dialog open={isBatchArchiveDialogOpen} onOpenChange={(open) => {
+        if (!batchArchiveLoading) setIsBatchArchiveDialogOpen(open)
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="archive-dialog-title">Confirmation d'archivage en lot</DialogTitle>
+            <DialogDescription className="archive-dialog-description">
+              Êtes-vous sûr de vouloir archiver {selectedUsers.length} recruteur(s) ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="archive-dialog-footer flex flex-row justify-end gap-2 sm:justify-end">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setIsBatchArchiveDialogOpen(false)}
+              disabled={batchArchiveLoading}
+            >
+              Annuler
+            </Button>
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={confirmBatchArchive}
+              disabled={batchArchiveLoading}
+            >
+              {batchArchiveLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Archivage...
+                </>
+              ) : (
+                "Archiver"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

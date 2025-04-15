@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 
 import {
   Dialog,
@@ -36,7 +37,21 @@ interface User {
   role?: string
 }
 
-export function ReviewsTable({ refresh }: { refresh: boolean }) {
+interface ReviewsTableProps {
+  refresh: boolean
+  selectMode?: boolean
+  selectedUsers?: number[]
+  onToggleSelect?: (userId: number) => void
+  archivedUserIds?: number[]
+}
+
+export function ReviewsTable({
+  refresh,
+  selectMode = false,
+  selectedUsers = [],
+  onToggleSelect = () => {},
+  archivedUserIds = [],
+}: ReviewsTableProps) {
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -87,6 +102,13 @@ export function ReviewsTable({ refresh }: { refresh: boolean }) {
     fetchUsers()
   }, [refresh, router])
 
+  // Filtrer les utilisateurs archivés
+  useEffect(() => {
+    if (archivedUserIds.length > 0) {
+      setUsers((prevUsers) => prevUsers.filter((user) => !archivedUserIds.includes(user.id)))
+    }
+  }, [archivedUserIds])
+
   const archiveUser = async (userId: number) => {
     setUserToArchive(userId)
     setIsArchiveDialogOpen(true)
@@ -115,7 +137,14 @@ export function ReviewsTable({ refresh }: { refresh: boolean }) {
         throw new Error("Erreur lors de l'archivage de l'utilisateur")
       }
 
+      // Mise à jour en temps réel de l'interface utilisateur
       setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToArchive))
+
+      // Notifier le parent si nécessaire via un callback
+      if (onToggleSelect && selectedUsers.includes(userToArchive)) {
+        onToggleSelect(userToArchive)
+      }
+
       setIsArchiveDialogOpen(false)
       setUserToArchive(null)
     } catch (error) {
@@ -143,6 +172,15 @@ export function ReviewsTable({ refresh }: { refresh: boolean }) {
       <div className="cards-grid">
         {users.map((user) => (
           <Card key={user.id} className="user-card">
+            {selectMode && (
+              <div className="absolute top-2 left-2 z-10">
+                <Checkbox
+                  checked={selectedUsers.includes(user.id)}
+                  onCheckedChange={() => onToggleSelect(user.id)}
+                  className="h-5 w-5 border-2 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                />
+              </div>
+            )}
             <div className="card-header"></div>
             <div className="avatar-container">
               <Avatar className="user-avatar">
@@ -154,7 +192,7 @@ export function ReviewsTable({ refresh }: { refresh: boolean }) {
             <CardContent className="card-content">
               <h3 className="user-name">{user.nom_societe}</h3>
 
-              <Badge className="user-badge">{user.domaine_activite || "Non spécifié"}</Badge>
+              <Badge className="user-badge">{user.numTel || "Non spécifié"}</Badge>
 
               <div className="user-details">
                 <div className="detail-row">
@@ -227,4 +265,3 @@ export function ReviewsTable({ refresh }: { refresh: boolean }) {
     </>
   )
 }
-
